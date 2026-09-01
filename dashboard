@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VANGUARD MINE AI - Real-Time Mine Subsidence Monitoring & Early Warning System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+
+    <header class="app-header">
+        <div class="header-left">
+            <div class="brand-logo">
+                <i class="fa-solid fa-mountain-city logo-icon"></i>
+                <div class="brand-text">
+                    <h1>VANGUARD MINE AI</h1>
+                    <p class="subtitle">AI-Enabled Real-Time Mine Subsidence Monitoring & Early Warning System</p>
+                </div>
+            </div>
+            <div class="system-status-pill online">
+                <span class="status-dot pulse"></span>
+                <span>SYSTEM ONLINE</span>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="sih-badge">
+                <span class="sih-title">SIH 2026</span>
+                <span class="sih-id">PROBLEM STATEMENT ID: 26025</span>
+                <span class="sih-org">Ministry of Coal | Coal India Ltd.</span>
+            </div>
+            
+            <div class="connection-telemetry">
+                <div class="telemetry-item">
+                    <span class="label">LoRa Gateway:</span>
+                    <span class="value status-ok" id="loraStatus">CONNECTED</span>
+                </div>
+                <div class="telemetry-item">
+                    <span class="label">Cloud Sync:</span>
+                    <span class="value status-ok" id="cloudStatus">CONNECTED</span>
+                </div>
+                <div class="telemetry-item">
+                    <span class="label">Last Updated:</span>
+                    <span class="value" id="lastUpdatedTime">10:42:16 AM</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button class="icon-btn" id="btnNotifications" title="Notifications">
+                    <i class="fa-regular fa-bell"></i>
+                    <span class="badge-count" id="notificationCount">3</span>
+                </button>
+                <button class="icon-btn" id="btnSettings" title="System Settings">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+                <div class="user-profile">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span>Control Room Admin</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="control-toolbar">
+        <div class="toolbar-left">
+            <nav class="main-nav">
+                <button class="nav-tab active" data-tab="tab-dashboard"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
+                <button class="nav-tab" data-tab="tab-map"><i class="fa-solid fa-map-location-dot"></i> Live Risk Map</button>
+                <button class="nav-tab" data-tab="tab-ai"><i class="fa-solid fa-brain"></i> AI Prediction</button>
+                <button class="nav-tab" data-tab="tab-sensors"><i class="fa-solid fa-microchip"></i> Sensor Network</button>
+                <button class="nav-tab" data-tab="tab-alerts"><i class="fa-solid fa-triangle-exclamation"></i> Alerts (<span id="activeAlertCount">3</span>)</button>
+                <button class="nav-tab" data-tab="tab-analytics"><i class="fa-solid fa-clock-rotate-left"></i> Historical Analytics</button>
+            </nav>
+        </div>
+        <div class="toolbar-right">
+            <div class="demo-toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="demoModeToggle" checked>
+                    <span class="slider round"></span>
+                </label>
+                <span class="demo-status-text" id="demoStatusText">● DEMO MODE ACTIVE</span>
+            </div>
+            <button class="btn btn-warning" id="btnSimulateEvent">
+                <i class="fa-solid fa-bolt"></i> SIMULATE SUBSIDENCE EVENT
+            </button>
+            <button class="btn btn-secondary" id="btnResetSimulation">
+                <i class="fa-solid fa-rotate-left"></i> RESET
+            </button>
+        </div>
+    </div>
+
+    <main class="dashboard-body container-fluid">
+
+        <div class="workflow-banner">
+            <div class="workflow-step"><i class="fa-solid fa-walkie-talkie"></i> <span>1. SENSE</span></div>
+            <div class="workflow-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+            <div class="workflow-step"><i class="fa-solid fa-network-wired"></i> <span>2. CONNECT</span></div>
+            <div class="workflow-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+            <div class="workflow-step"><i class="fa-solid fa-microchip"></i> <span>3. PROCESS</span></div>
+            <div class="workflow-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+            <div class="workflow-step"><i class="fa-solid fa-brain"></i> <span>4. ANALYZE</span></div>
+            <div class="workflow-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+            <div class="workflow-step"><i class="fa-solid fa-chart-line"></i> <span>5. PREDICT</span></div>
+            <div class="workflow-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+            <div class="workflow-step danger"><i class="fa-solid fa-bell"></i> <span>6. WARN</span></div>
+        </div>
+
+        <div id="tab-dashboard" class="tab-content active">
+            
+            <section class="kpi-grid">
+                <div class="glass-card kpi-card" id="kpi-card-nodes">
+                    <div class="kpi-header">
+                        <span class="kpi-title">TOTAL SENSOR NODES</span>
+                        <i class="fa-solid fa-network-wired kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value-group">
+                            <span class="kpi-value" id="kpiTotalNodes">24</span>
+                            <span class="kpi-unit">Nodes</span>
+                        </div>
+                        <div class="kpi-sparkline"><canvas id="sparklineNodes"></canvas></div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext ok"><i class="fa-solid fa-circle"></i> 22 ONLINE</span>
+                        <span class="kpi-subtext alert"><i class="fa-solid fa-circle"></i> 2 OFFLINE</span>
+                    </div>
+                </div>
+
+                <div class="glass-card kpi-card" id="kpi-card-tilt">
+                    <div class="kpi-header">
+                        <span class="kpi-title">GROUND TILT</span>
+                        <i class="fa-solid fa-compass-drafting kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value-group">
+                            <span class="kpi-value" id="kpiTilt">1.82</span>
+                            <span class="kpi-unit">°</span>
+                        </div>
+                        <div class="kpi-sparkline"><canvas id="sparklineTilt"></canvas></div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-trend up" id="kpiTiltTrend"><i class="fa-solid fa-arrow-up"></i> ↑ 8.4%</span>
+                        <span class="kpi-time">vs last hr</span>
+                    </div>
+                </div>
+
+                <div class="glass-card kpi-card" id="kpi-card-displacement">
+                    <div class="kpi-header">
+                        <span class="kpi-title">SURFACE DISPLACEMENT</span>
+                        <i class="fa-solid fa-arrows-up-down-left-right kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value-group">
+                            <span class="kpi-value" id="kpiDisplacement">12.6</span>
+                            <span class="kpi-unit">mm</span>
+                        </div>
+                        <div class="kpi-sparkline"><canvas id="sparklineDisplacement"></canvas></div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-trend up" id="kpiDispTrend"><i class="fa-solid fa-arrow-up"></i> ↑ 3.2 mm</span>
+                        <span class="kpi-time">continuous shift</span>
+                    </div>
+                </div>
+
+                <div class="glass-card kpi-card" id="kpi-card-vibration">
+                    <div class="kpi-header">
+                        <span class="kpi-title">SURFACE VIBRATION</span>
+                        <i class="fa-solid fa-wave-square kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value-group">
+                            <span class="kpi-value" id="kpiVibration">0.42</span>
+                            <span class="kpi-unit">g</span>
+                        </div>
+                        <div class="kpi-sparkline"><canvas id="sparklineVibration"></canvas></div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext ok" id="kpiVibStatus">Status: NORMAL</span>
+                        <span class="kpi-time">0.1 - 0.5g norm</span>
+                    </div>
+                </div>
+
+                <div class="glass-card kpi-card risk-warning" id="kpi-card-risk">
+                    <div class="kpi-header">
+                        <span class="kpi-title">SUBSIDENCE RISK</span>
+                        <i class="fa-solid fa-shield-halved kpi-icon"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value-group">
+                            <span class="kpi-value" id="kpiRiskCategory">MEDIUM</span>
+                            <span class="kpi-unit" id="kpiRiskScore">62 / 100</span>
+                        </div>
+                        <div class="kpi-sparkline"><canvas id="sparklineRisk"></canvas></div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-trend warning" id="kpiRiskSub">AI Risk Engine Evaluation</span>
+                    </div>
+                </div>
+
+                <div class="glass-card kpi-card alert-card" id="kpi-card-alerts">
+                    <div class="kpi-header">
+                        <span class="kpi-title">ACTIVE ALERTS</span>
+                        <i class="fa-solid fa-bell kpi-icon pulse"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value-group">
+                            <span class="kpi-value" id="kpiActiveAlerts">03</span>
+                            <span class="kpi-unit">Active</span>
+                        </div>
+                        <div class="kpi-sparkline"><canvas id="sparklineAlerts"></canvas></div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext critical" id="kpiAlertCritical">1 CRITICAL</span>
+                        <span class="kpi-subtext warning" id="kpiAlertWarning">2 WARNING</span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="dashboard-row grid-2-1">
+                <div class="glass-card section-card map-section">
+                    <div class="card-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                            <h3>LIVE SUBSIDENCE RISK MAP</h3>
+                        </div>
+                        <div class="map-controls-inline">
+                            <button class="btn-sm active" id="btnLayerHeatmap"><i class="fa-solid fa-fire"></i> Risk Heatmap</button>
+                            <button class="btn-sm active" id="btnLayerNodes"><i class="fa-solid fa-circle-dot"></i> Sensor Nodes</button>
+                            <button class="btn-sm" id="btnResetMapView"><i class="fa-solid fa-compress"></i> Reset View</button>
+                        </div>
+                    </div>
+                    <div class="card-body map-container">
+                        <div id="leafletMap" class="map-view"></div>
+                        <div class="map-legend">
+                            <div class="legend-title">Risk Levels</div>
+                            <div class="legend-item"><span class="color-box safe"></span> Safe (&lt; 40)</div>
+                            <div class="legend-item"><span class="color-box low"></span> Low Risk (40-59)</div>
+                            <div class="legend-item"><span class="color-box warning"></span> Warning (60-79)</div>
+                            <div class="legend-item"><span class="color-box critical"></span> Critical (&ge; 80)</div>
+                            <div class="legend-divider"></div>
+                            <div class="legend-item"><i class="fa-solid fa-tower-cell" style="color: #06B6D4;"></i> LoRa Gateway</div>
+                            <div class="legend-item"><i class="fa-solid fa-draw-polygon" style="color: rgba(239,68,68,0.5);"></i> Mine Boundary</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card section-card ai-prediction-section">
+                    <div class="card-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-brain"></i>
+                            <h3>AI SUBSIDENCE PREDICTION</h3>
+                        </div>
+                        <span class="badge badge-cyan">MODEL ACTIVE</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="ai-score-container">
+                            <div class="radial-gauge">
+                                <svg viewBox="0 0 36 36" class="circular-chart">
+                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path class="circle" id="aiGaugeCircle" stroke-dasharray="62, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <text x="18" y="17" class="percentage-val" id="aiScoreText">62</text>
+                                    <text x="18" y="24" class="percentage-unit">/ 100</text>
+                                </svg>
+                            </div>
+                            <div class="ai-risk-status-group">
+                                <div class="risk-label-badge warning" id="aiRiskBadge">MEDIUM RISK</div>
+                                <div class="meta-detail">Predicted Trend: <strong id="aiPredictedTrend" class="text-orange">INCREASING</strong></div>
+                                <div class="meta-detail">Prediction Window: <strong>NEXT 6 HOURS</strong></div>
+                                <div class="meta-detail">Confidence: <strong class="text-cyan">91%</strong></div>
+                            </div>
+                        </div>
+
+                        <div class="ai-chart-wrapper">
+                            <canvas id="aiPredictionChart"></canvas>
+                        </div>
+
+                        <div class="ai-explanation-box">
+                            <div class="explanation-header"><i class="fa-solid fa-circle-question"></i> WHY IS RISK INCREASING?</div>
+                            <ul class="explanation-list" id="aiExplanationList">
+                                <li><i class="fa-solid fa-triangle-exclamation text-orange"></i> Ground tilt increased by 8.4% in Panel B-04.</li>
+                                <li><i class="fa-solid fa-arrows-up-down text-orange"></i> Surface displacement increased by 3.2 mm continuously.</li>
+                                <li><i class="fa-solid fa-diagram-project text-cyan"></i> 4 neighboring nodes (013, 014, 015, 016) show spatial correlation.</li>
+                                <li><i class="fa-solid fa-wave-square text-gray"></i> Vibration baseline ambient acceleration spiking above 0.4g.</li>
+                            </ul>
+                            <div class="ai-metrics-footer">
+                                <span>Spatial Correlation: <strong id="valSpatialCorr">0.87</strong></span>
+                                <span>Temporal Trend: <strong id="valTempTrend">INCREASING</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title-bar">
+                <i class="fa-solid fa-chart-line"></i>
+                <h2>REAL-TIME SENSOR MONITORING (LAST 30 MINS)</h2>
+            </div>
+            <div class="dashboard-row grid-2-2">
+                <div class="glass-card chart-card">
+                    <div class="card-header">
+                        <h4><i class="fa-solid fa-compass-drafting text-cyan"></i> GROUND TILT (DEGREES)</h4>
+                        <span class="chart-curr-val" id="chartValTilt">1.82°</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chartTilt"></canvas>
+                    </div>
+                </div>
+                <div class="glass-card chart-card">
+                    <div class="card-header">
+                        <h4><i class="fa-solid fa-arrows-up-down-left-right text-yellow"></i> SURFACE DISPLACEMENT (MM)</h4>
+                        <span class="chart-curr-val" id="chartValDisp">12.6 mm</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chartDisplacement"></canvas>
+                    </div>
+                </div>
+                <div class="glass-card chart-card">
+                    <div class="card-header">
+                        <h4><i class="fa-solid fa-wave-square text-green"></i> SURFACE VIBRATION (G)</h4>
+                        <span class="chart-curr-val" id="chartValVib">0.42 g</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chartVibration"></canvas>
+                    </div>
+                </div>
+                <div class="glass-card chart-card">
+                    <div class="card-header">
+                        <h4><i class="fa-solid fa-crack text-orange"></i> CRACK / STRUCTURAL MOVEMENT (MM)</h4>
+                        <span class="chart-curr-val" id="chartValCrack">2.1 mm</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chartCrack"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-row grid-1-1">
+                <div class="glass-card section-card">
+                    <div class="card-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-table-cells"></i>
+                            <h3>SPATIAL-TEMPORAL DEFORMATION ANALYSIS</h3>
+                        </div>
+                        <span class="badge badge-info">12 CORE ZONES</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="section-subtitle">Node correlation engine prevents false positives by assessing cluster spatial movement.</p>
+                        <div class="spatial-grid" id="spatialNodeGrid">
+                            </div>
+                        <div class="spatial-analytics-summary">
+                            <div class="summary-box">
+                                <span class="label">Affected Zone:</span>
+                                <span class="val text-orange" id="stAffectedZone">Panel B-04</span>
+                            </div>
+                            <div class="summary-box">
+                                <span class="label">Neighbor Correlation:</span>
+                                <span class="val text-cyan" id="stNeighborCorr">0.87</span>
+                            </div>
+                            <div class="summary-box">
+                                <span class="label">Affected Nodes:</span>
+                                <span class="val text-yellow" id="stAffectedNodes">4 / 12</span>
+                            </div>
+                            <div class="summary-box">
+                                <span class="label">Risk Propagation:</span>
+                                <span class="val text-orange" id="stRiskProp">MODERATE</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card section-card">
+                    <div class="card-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <h3>EARLY WARNING & ACTIVE ALERTS</h3>
+                        </div>
+                        <button class="btn-sm" id="btnClearAlerts"><i class="fa-solid fa-check-double"></i> Acknowledge All</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="alerts-feed" id="alertsFeed">
+                            <div class="alert-item critical">
+                                <div class="alert-icon"><i class="fa-solid fa-circle-exclamation"></i></div>
+                                <div class="alert-content">
+                                    <div class="alert-header">
+                                        <span class="alert-tag critical">CRITICAL</span>
+                                        <span class="alert-title">NODE-014 detected abnormal deformation</span>
+                                        <span class="alert-time">10:42:16</span>
+                                    </div>
+                                    <div class="alert-details">
+                                        Surface Displacement: <strong>18.4 mm</strong> | Risk Score: <strong class="text-red">82 / 100</strong>
+                                    </div>
+                                    <div class="alert-action-rec">
+                                        <i class="fa-solid fa-shield-cat"></i> Recommended Action: <strong>Immediate Field Verification & Sector B Evacuation Warning</strong>
+                                    </div>
+                                    <div class="alert-buttons">
+                                        <button class="btn-xs btn-danger btn-ack">ACKNOWLEDGE</button>
+                                        <button class="btn-xs btn-secondary btn-locate" data-node="NODE-014">VIEW LOCATION</button>
+                                        <button class="btn-xs btn-warning btn-verify">FIELD VERIFICATION</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert-item warning">
+                                <div class="alert-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div class="alert-content">
+                                    <div class="alert-header">
+                                        <span class="alert-tag warning">WARNING</span>
+                                        <span class="alert-title">Panel B-04 deformation trend increasing</span>
+                                        <span class="alert-time">10:38:05</span>
+                                    </div>
+                                    <div class="alert-details">
+                                        Ground Tilt: <strong>2.91°</strong> | Risk Score: <strong class="text-orange">72 / 100</strong>
+                                    </div>
+                                    <div class="alert-buttons">
+                                        <button class="btn-xs btn-warning btn-ack">ACKNOWLEDGE</button>
+                                        <button class="btn-xs btn-secondary btn-locate" data-node="NODE-015">VIEW LOCATION</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert-item info">
+                                <div class="alert-icon"><i class="fa-solid fa-battery-quarter"></i></div>
+                                <div class="alert-content">
+                                    <div class="alert-header">
+                                        <span class="alert-tag info">ATTENTION</span>
+                                        <span class="alert-title">NODE-009 battery below threshold</span>
+                                        <span class="alert-time">09:15:22</span>
+                                    </div>
+                                    <div class="alert-details">
+                                        Battery Level: <strong class="text-yellow">18%</strong> | RSSI: -84 dBm
+                                    </div>
+                                    <div class="alert-buttons">
+                                        <button class="btn-xs btn-secondary btn-ack">DISMISS</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card section-card">
+                <div class="card-header">
+                    <div class="header-title">
+                        <i class="fa-solid fa-table"></i>
+                        <h3>SENSOR NETWORK STATUS</h3>
+                    </div>
+                    <div class="table-actions">
+                        <input type="text" id="tableSearch" placeholder="Search Node ID or Location..." class="table-search-input">
+                        <select id="tableFilterRisk" class="table-select">
+                            <option value="ALL">All Risk Levels</option>
+                            <option value="SAFE">Safe</option>
+                            <option value="LOW">Low Risk</option>
+                            <option value="WARNING">Warning</option>
+                            <option value="CRITICAL">Critical</option>
+                        </select>
+                        <button class="btn-sm btn-cyan" id="btnExportCSV"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+                        <button class="btn-sm btn-cyan" id="btnExportJSON"><i class="fa-solid fa-file-code"></i> Export JSON</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="industrial-table" id="sensorTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort="id">Node ID <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="location">Location <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="tilt">Tilt (°) <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="displacement">Displacement (mm) <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="vibration">Vibration (g) <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="crack">Crack (mm) <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="battery">Battery <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="rssi">RSSI (dBm) <i class="fa-solid fa-sort"></i></th>
+                                    <th data-sort="risk">Risk Score <i class="fa-solid fa-sort"></i></th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sensorTableBody">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-row grid-1-1">
+                <div class="glass-card section-card">
+                    <div class="card-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-diagram-project"></i>
+                            <h3>LoRa MESH NETWORK STATUS</h3>
+                        </div>
+                        <span class="badge badge-green">97.8% PACKET DELIVERY</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="lora-metrics-grid">
+                            <div class="metric-mini">
+                                <span class="lbl">Gateway ID</span>
+                                <span class="val text-cyan">GW-01</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="lbl">Connected Nodes</span>
+                                <span class="val text-green">22 / 24</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="lbl">Avg RSSI</span>
+                                <span class="val">-72 dBm</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="lbl">Avg SNR</span>
+                                <span class="val text-cyan">8.6 dB</span>
+                            </div>
+                        </div>
+
+                        <div class="mesh-diagram-container">
+                            <svg class="mesh-svg" viewBox="0 0 500 200">
+                                <line x1="80" y1="50" x2="250" y2="100" class="mesh-link active-link" />
+                                <line x1="80" y1="150" x2="250" y2="100" class="mesh-link active-link" />
+                                <line x1="420" y1="50" x2="250" y2="100" class="mesh-link active-link" />
+                                <line x1="420" y1="150" x2="250" y2="100" class="mesh-link active-link" />
+                                <line x1="80" y1="50" x2="80" y2="150" class="mesh-link" />
+                                <line x1="420" y1="50" x2="420" y2="150" x2="250" y2="100" class="mesh-link" />
+                                <line x1="250" y1="100" x2="250" y2="180" class="mesh-link cloud-link" />
+
+                                <circle r="4" class="packet p1"><animateMotion path="M80,50 L250,100" dur="2s" repeatCount="indefinite" /></circle>
+                                <circle r="4" class="packet p2"><animateMotion path="M80,150 L250,100" dur="2.5s" repeatCount="indefinite" /></circle>
+                                <circle r="4" class="packet p3"><animateMotion path="M420,50 L250,100" dur="1.8s" repeatCount="indefinite" /></circle>
+                                <circle r="4" class="packet p4"><animateMotion path="M420,150 L250,100" dur="2.2s" repeatCount="indefinite" /></circle>
+                                <circle r="4" class="packet p5"><animateMotion path="M250,100 L250,180" dur="1.2s" repeatCount="indefinite" /></circle>
+
+                                <g class="node-group" transform="translate(80,50)">
+                                    <circle r="16" class="node-circle" />
+                                    <text y="4" class="node-text">N-01</text>
+                                </g>
+                                <g class="node-group" transform="translate(80,150)">
+                                    <circle r="16" class="node-circle" />
+                                    <text y="4" class="node-text">N-02</text>
+                                </g>
+                                <g class="node-group gateway" transform="translate(250,100)">
+                                    <rect x="-24" y="-18" width="48" height="36" rx="6" class="gw-box" />
+                                    <text y="4" class="node-text gw">GATEWAY</text>
+                                </g>
+                                <g class="node-group" transform="translate(420,50)">
+                                    <circle r="16" class="node-circle" />
+                                    <text y="4" class="node-text">N-03</text>
+                                </g>
+                                <g class="node-group" transform="translate(420,150)">
+                                    <circle r="16" class="node-circle" />
+                                    <text y="4" class="node-text">N-04</text>
+                                </g>
+                                <g class="node-group cloud" transform="translate(250,180)">
+                                    <ellipse rx="30" ry="12" class="cloud-box" />
+                                    <text y="4" class="node-text cloud">CLOUD</text>
+                                </g>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card section-card">
+                    <div class="card-header">
+                        <div class="header-title">
+                            <i class="fa-solid fa-server"></i>
+                            <h3>EDGE GATEWAY (ESP32 CORE)</h3>
+                        </div>
+                        <span class="badge badge-green">ONLINE</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="edge-specs-grid">
+                            <div class="edge-item">
+                                <span class="label">Hardware:</span>
+                                <span class="val">ESP32 Dual-Core 240MHz</span>
+                            </div>
+                            <div class="edge-item">
+                                <span class="label">CPU Usage:</span>
+                                <span class="val text-cyan" id="edgeCpu">42%</span>
+                            </div>
+                            <div class="edge-item">
+                                <span class="label">Memory Usage:</span>
+                                <span class="val" id="edgeMem">61%</span>
+                            </div>
+                            <div class="edge-item">
+                                <span class="label">Data Buffer:</span>
+                                <span class="val text-green" id="edgeBuffer">18 MB Flash</span>
+                            </div>
+                        </div>
+
+                        <div class="edge-status-checks">
+                            <div class="check-box ok">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span>LOCAL PROCESSING: <strong>ACTIVE</strong></span>
+                            </div>
+                            <div class="check-box ok">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span>OFFLINE BUFFERING: <strong>ENABLED</strong></span>
+                            </div>
+                            <div class="check-box ok">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span>CLOUD SYNC: <strong>SYNCED (4s ago)</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="system-health-gauges">
+                            <div class="health-mini">
+                                <span>Overall Health</span>
+                                <div class="progress-bar-wrap">
+                                    <div class="progress-bar-fill green" style="width: 98.7%;"></div>
+                                </div>
+                                <span class="health-pct">98.7%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card section-card">
+                <div class="card-header">
+                    <div class="header-title">
+                        <i class="fa-solid fa-sitemap"></i>
+                        <h3>END-TO-END SYSTEM ARCHITECTURE</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="architecture-flow">
+                        <div class="arch-step">
+                            <div class="arch-icon"><i class="fa-solid fa-microchip"></i></div>
+                            <div class="arch-title">SENSOR NODES</div>
+                            <div class="arch-desc">MEMS Tilt, Displacement, Vibration & Cracks</div>
+                        </div>
+                        <div class="arch-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="arch-step">
+                            <div class="arch-icon"><i class="fa-solid fa-cpu"></i></div>
+                            <div class="arch-title">ESP32 ACQUISITION</div>
+                            <div class="arch-desc">Sampling & Edge Filtering</div>
+                        </div>
+                        <div class="arch-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="arch-step">
+                            <div class="arch-icon"><i class="fa-solid fa-network-wired"></i></div>
+                            <div class="arch-title">LoRa MESH</div>
+                            <div class="arch-desc">Long-Range Low-Power Wireless</div>
+                        </div>
+                        <div class="arch-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="arch-step">
+                            <div class="arch-icon"><i class="fa-solid fa-server"></i></div>
+                            <div class="arch-title">EDGE GATEWAY</div>
+                            <div class="arch-desc">Buffer & Pre-processing</div>
+                        </div>
+                        <div class="arch-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="arch-step">
+                            <div class="arch-icon"><i class="fa-solid fa-cloud"></i></div>
+                            <div class="arch-title">CLOUD / THINGSPEAK</div>
+                            <div class="arch-desc">Telemetry REST Storage</div>
+                        </div>
+                        <div class="arch-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="arch-step">
+                            <div class="arch-icon"><i class="fa-solid fa-brain"></i></div>
+                            <div class="arch-title">AI / ML ANALYTICS</div>
+                            <div class="arch-desc">Spatial-Temporal Risk Scoring</div>
+                        </div>
+                        <div class="arch-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="arch-step danger">
+                            <div class="arch-icon"><i class="fa-solid fa-bell"></i></div>
+                            <div class="arch-title">EARLY WARNING</div>
+                            <div class="arch-desc">Automated Mine Response</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div> <div id="tab-map" class="tab-content">
+            <div class="glass-card section-card">
+                <h3>EXPANDED GEOSPATIAL MINE SUBSIDENCE MAP</h3>
+                <p>Full-screen interactive Leaflet map interface with high-resolution depth contours and structural layering.</p>
+                <div id="tabLeafletMap" class="map-view-large"></div>
+            </div>
+        </div>
+
+        <div id="tab-ai" class="tab-content">
+            <div class="glass-card section-card">
+                <h3>DEEP LEARNING SUBSIDENCE PREDICTION MODEL DETAILS</h3>
+                <p>Prototype Spatial-Temporal Graph Neural Network (ST-GNN) & Random Forest Ensemble outputs for mine surface stability.</p>
+            </div>
+        </div>
+
+        <div id="tab-sensors" class="tab-content">
+            <div class="glass-card section-card">
+                <h3>DETAILED SENSOR TELEMETRY & HARDWARE HEALTH</h3>
+                <p>Real-time node diagnostics, RSSI mesh topology, and battery telemetry.</p>
+            </div>
+        </div>
+
+        <div id="tab-alerts" class="tab-content">
+            <div class="glass-card section-card">
+                <h3>EARLY WARNING INCIDENT & AUDIT LOG</h3>
+                <p>Statutory safety records, warning dispatcher logs, and field engineer responses.</p>
+            </div>
+        </div>
+
+        <div id="tab-analytics" class="tab-content">
+            <div class="glass-card section-card">
+                <h3>HISTORICAL DEFORMATION TRENDS & REPORTING</h3>
+                <div class="analytics-filters">
+                    <button class="btn-sm active">Last 1 Hour</button>
+                    <button class="btn-sm">Last 6 Hours</button>
+                    <button class="btn-sm">Last 24 Hours</button>
+                    <button class="btn-sm">Last 7 Days</button>
+                    <button class="btn-sm">Last 30 Days</button>
+                </div>
+                <div class="analytics-summary-grid">
+                    <div class="glass-card inner-card">Avg Deformation: <strong>11.2 mm</strong></div>
+                    <div class="glass-card inner-card">Max Deformation: <strong>18.4 mm</strong></div>
+                    <div class="glass-card inner-card">Peak Vibration: <strong>0.72 g</strong></div>
+                    <div class="glass-card inner-card">Avg Risk Score: <strong>54 / 100</strong></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div class="modal-backdrop" id="sensorModal">
+        <div class="glass-card modal-content">
+            <div class="modal-header">
+                <h3 id="modalNodeId">SENSOR NODE-014</h3>
+                <button class="modal-close" id="btnCloseModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="sensor-modal-grid">
+                    <div class="m-item"><span>Location Panel:</span> <strong id="modalLocation">Panel B-04</strong></div>
+                    <div class="m-item"><span>Ground Tilt:</span> <strong id="modalTilt" class="text-orange">2.91°</strong></div>
+                    <div class="m-item"><span>Surface Displacement:</span> <strong id="modalDisp" class="text-red">18.4 mm</strong></div>
+                    <div class="m-item"><span>Vibration Level:</span> <strong id="modalVib">0.72 g</strong></div>
+                    <div class="m-item"><span>Crack Width:</span> <strong id="modalCrack">3.1 mm</strong></div>
+                    <div class="m-item"><span>Battery Level:</span> <strong id="modalBattery">86%</strong></div>
+                    <div class="m-item"><span>Signal RSSI:</span> <strong id="modalSignal">-72 dBm</strong></div>
+                    <div class="m-item"><span>Calculated Risk:</span> <strong id="modalRisk" class="text-red">82 / 100</strong></div>
+                    <div class="m-item"><span>Current Status:</span> <span class="badge badge-red" id="modalStatus">CRITICAL</span></div>
+                    <div class="m-item"><span>Last Update:</span> <span id="modalUpdate">10 seconds ago</span></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-warning" id="btnModalAck">ACKNOWLEDGE ALERT</button>
+                <button class="btn btn-secondary" id="btnModalClose2">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="drawer-backdrop" id="drawerNotifications">
+        <div class="glass-card drawer-content">
+            <div class="drawer-header">
+                <h3><i class="fa-regular fa-bell"></i> SYSTEM NOTIFICATIONS</h3>
+                <button class="modal-close" id="btnCloseDrawer">&times;</button>
+            </div>
+            <div class="drawer-body">
+                <ul class="notification-list" id="notificationList">
+                    <li><i class="fa-solid fa-triangle-exclamation text-red"></i> Critical displacement threshold exceeded on NODE-014 (18.4mm) <span class="time">10:42 AM</span></li>
+                    <li><i class="fa-solid fa-triangle-exclamation text-orange"></i> Panel B-04 deformation trend increasing <span class="time">10:38 AM</span></li>
+                    <li><i class="fa-solid fa-battery-quarter text-yellow"></i> NODE-009 battery low alert (18%) <span class="time">09:15 AM</span></li>
+                    <li><i class="fa-solid fa-check text-green"></i> LoRa Gateway sync successful <span class="time">09:00 AM</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="modalSettings">
+        <div class="glass-card modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-gear"></i> DASHBOARD SETTINGS</h3>
+                <button class="modal-close" id="btnCloseSettings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-form">
+                    <div class="setting-item">
+                        <label>ThingSpeak Channel ID</label>
+                        <input type="text" id="settingChannelId" placeholder="e.g. 1234567">
+                    </div>
+                    <div class="setting-item">
+                        <label>ThingSpeak Read API Key</label>
+                        <input type="text" id="settingApiKey" placeholder="e.g. ABC123XYZ">
+                    </div>
+                    <div class="setting-item">
+                        <label>Auto Refresh Interval (ms)</label>
+                        <input type="number" id="settingInterval" value="5000">
+                    </div>
+                    <div class="setting-item">
+                        <label><input type="checkbox" id="settingSound" checked> Enable Audio Warning Alerts</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cyan" id="btnSaveSettings">SAVE CONFIGURATION</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <div class="footer-left">
+            <strong>VANGUARD MINE AI</strong> - AI-Enabled Mine Subsidence Monitoring, Prediction & Early Warning System
+        </div>
+        <div class="footer-center">
+            Smart India Hackathon 2026 | Problem Statement ID: 26025
+        </div>
+        <div class="footer-right">
+            Prototype System – For Demonstration & Research | Ministry of Coal & Coal India Ltd.
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
