@@ -1,0 +1,35 @@
+ESP32 GPIO	Connected Device	Data
+GPIO 21	MPU6050 SDA	I²C
+GPIO 22	MPU6050 SCL	I²C
+GPIO 34	Displacement sensor	Analog
+GPIO 35	Vibration sensor	Analog
+GPIO 32	Crack sensor	Analog
+GPIO 33	Battery voltage	Analog
+GPIO 25	Green LED	SAFE
+GPIO 26	Yellow LED	WARNING
+GPIO 27	Red LED	CRITICAL
+GPIO 14	Buzzer driver	ALERT
+GPIO 2	Status LED	Wi-Fi/System 
+
+
+
+
+1.0.1ESP32 Sensor Connections
+Component	Pin / Terminal	ESP32 Connection	Purpose
+MPU6050	VCC	3.3V	Power
+	GND	GND	Common ground
+	SDA	GPIO 21	I²C data
+	SCL	GPIO 22	I²C clock
+Displacement Sensor	VCC	3.3V / sensor-rated supply	Power
+	GND	GND	Common ground
+	OUT	GPIO 34	Displacement measurement
+Vibration Sensor	VCC	3.3V / sensor-rated supply	Power
+	GND	GND	Common ground
+	OUT	GPIO 35	Vibration measurement
+Crack Sensor	VCC	3.3V / sensor-rated supply	Power
+	GND	GND	Common ground
+	OUT	GPIO 32	Crack-width measurement
+Battery Voltage Sensor	VCC/IN	Battery through voltage divider	Battery measurement
+	GND	GND	Common ground
+	OUT	GPIO 33	Battery voltage ADC
+
