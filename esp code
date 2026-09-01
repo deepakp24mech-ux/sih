@@ -1,0 +1,900 @@
+/*
+  ============================================================
+                    VANGUARD MINE AI
+  ============================================================
+
+  AI-Enabled Low-Cost Real-Time Mine Subsidence
+  Monitoring, Prediction & Early Warning System
+
+  ESP32 SENSOR NODE
+  ------------------------------------------------------------
+
+  ThingSpeak Channel:
+  Channel ID: 3477577
+
+  ThingSpeak Fields:
+
+  Field 1 -> Ground Tilt (degrees)
+  Field 2 -> Surface Displacement (mm)
+  Field 3 -> Vibration (g)
+  Field 4 -> Crack Width (mm)
+  Field 5 -> Battery (%)
+  Field 6 -> Risk Score (0-100)
+
+  ============================================================
+*/
+
+// ============================================================
+// LIBRARIES
+// ============================================================
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <MPU6050.h>
+
+// ============================================================
+// WIFI SETTINGS
+// ============================================================
+
+const char* WIFI_SSID = "test";
+const char* WIFI_PASSWORD = "test1234";
+
+// ============================================================
+// THINGSPEAK SETTINGS
+// ============================================================
+
+const char* THINGSPEAK_WRITE_API_KEY =
+  "JG1DN6SF5RKF05PL";
+
+const char* THINGSPEAK_URL =
+  "http://api.thingspeak.com/update";
+
+// ============================================================
+// SENSOR PINS
+// ============================================================
+
+// MPU6050 uses I2C
+// SDA -> GPIO 21
+// SCL -> GPIO 22
+
+// Analog displacement sensor
+#define DISPLACEMENT_PIN 34
+
+// Analog vibration sensor
+#define VIBRATION_PIN 35
+
+// Analog crack sensor
+#define CRACK_PIN 32
+
+// Battery voltage sensor
+#define BATTERY_PIN 33
+
+// Status LED
+#define STATUS_LED 2
+
+// ============================================================
+// MPU6050
+// ============================================================
+
+MPU6050 mpu;
+
+// ============================================================
+// SENSOR VARIABLES
+// ============================================================
+
+float tiltAngle = 0.0;
+
+float displacement = 0.0;
+
+float vibration = 0.0;
+
+float crackWidth = 0.0;
+
+float batteryPercent = 0.0;
+
+float riskScore = 0.0;
+
+// Previous values
+float previousDisplacement = 0.0;
+float previousTilt = 0.0;
+
+// ============================================================
+// TIMING
+// ============================================================
+
+unsigned long lastUploadTime = 0;
+
+const unsigned long UPLOAD_INTERVAL = 15000;
+
+// ============================================================
+// SETUP
+// ============================================================
+
+void setup()
+{
+  Serial.begin(115200);
+
+  delay(1000);
+
+  Serial.println();
+  Serial.println("================================================");
+  Serial.println("             VANGUARD MINE AI");
+  Serial.println("================================================");
+  Serial.println("AI-Enabled Mine Subsidence Monitoring System");
+  Serial.println("ESP32 Sensor Node");
+  Serial.println("================================================");
+
+  // ----------------------------------------------------------
+  // ADC CONFIGURATION
+  // ----------------------------------------------------------
+
+  analogReadResolution(12);
+
+  // ----------------------------------------------------------
+  // STATUS LED
+  // ----------------------------------------------------------
+
+  pinMode(STATUS_LED, OUTPUT);
+
+  digitalWrite(STATUS_LED, LOW);
+
+  // ----------------------------------------------------------
+  // I2C
+  // ----------------------------------------------------------
+
+  Wire.begin(21, 22);
+
+  Serial.println();
+  Serial.println("Initializing MPU6050...");
+
+  mpu.initialize();
+
+  if (mpu.testConnection())
+  {
+    Serial.println("MPU6050: CONNECTED");
+  }
+  else
+  {
+    Serial.println("MPU6050: NOT DETECTED");
+    Serial.println("Check SDA/SCL wiring.");
+  }
+
+  // ----------------------------------------------------------
+  // WIFI
+  // ----------------------------------------------------------
+
+  connectWiFi();
+
+  Serial.println();
+  Serial.println("System initialization complete.");
+  Serial.println("Starting monitoring...");
+  Serial.println();
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+
+void loop()
+{
+  // ----------------------------------------------------------
+  // CHECK WIFI
+  // ----------------------------------------------------------
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    digitalWrite(STATUS_LED, LOW);
+
+    Serial.println("WiFi disconnected.");
+    connectWiFi();
+  }
+
+  // ----------------------------------------------------------
+  // READ SENSORS
+  // ----------------------------------------------------------
+
+  readTilt();
+
+  readDisplacement();
+
+  readVibration();
+
+  readCrack();
+
+  readBattery();
+
+  // ----------------------------------------------------------
+  // CALCULATE RISK
+  // ----------------------------------------------------------
+
+  riskScore = calculateRisk();
+
+  // ----------------------------------------------------------
+  // PRINT DATA
+  // ----------------------------------------------------------
+
+  printData();
+
+  // ----------------------------------------------------------
+  // UPLOAD TO THINGSPEAK
+  // ----------------------------------------------------------
+
+  if (millis() - lastUploadTime >= UPLOAD_INTERVAL)
+  {
+    uploadToThingSpeak();
+
+    lastUploadTime = millis();
+  }
+
+  delay(1000);
+}
+
+// ============================================================
+// WIFI CONNECTION
+// ============================================================
+
+void connectWiFi()
+{
+  Serial.println();
+  Serial.print("Connecting to WiFi");
+
+  WiFi.mode(WIFI_STA);
+
+  WiFi.begin(
+    WIFI_SSID,
+    WIFI_PASSWORD
+  );
+
+  int attempts = 0;
+
+  while (
+    WiFi.status() != WL_CONNECTED &&
+    attempts < 30
+  )
+  {
+    delay(500);
+
+    Serial.print(".");
+
+    attempts++;
+  }
+
+  Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    digitalWrite(STATUS_LED, HIGH);
+
+    Serial.println("WiFi: CONNECTED");
+
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    Serial.print("Signal Strength: ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
+  }
+  else
+  {
+    digitalWrite(STATUS_LED, LOW);
+
+    Serial.println("WiFi: CONNECTION FAILED");
+
+    Serial.println(
+      "Check SSID and password."
+    );
+  }
+}
+
+// ============================================================
+// TILT SENSOR
+// MPU6050
+// ============================================================
+
+void readTilt()
+{
+  int16_t ax;
+  int16_t ay;
+  int16_t az;
+
+  int16_t gx;
+  int16_t gy;
+  int16_t gz;
+
+  mpu.getMotion6(
+    &ax,
+    &ay,
+    &az,
+    &gx,
+    &gy,
+    &gz
+  );
+
+  // Convert accelerometer readings
+  float accelX = (float)ax;
+
+  float accelY = (float)ay;
+
+  float accelZ = (float)az;
+
+  // Calculate X-axis angle
+  float angleX =
+    atan2(
+      accelY,
+      sqrt(
+        accelX * accelX +
+        accelZ * accelZ
+      )
+    )
+    * 180.0 / PI;
+
+  // Calculate Y-axis angle
+  float angleY =
+    atan2(
+      accelX,
+      sqrt(
+        accelY * accelY +
+        accelZ * accelZ
+      )
+    )
+    * 180.0 / PI;
+
+  // Combined tilt
+  tiltAngle =
+    sqrt(
+      angleX * angleX +
+      angleY * angleY
+    );
+
+  // Limit unrealistic values
+  tiltAngle =
+    constrain(
+      tiltAngle,
+      0,
+      90
+    );
+}
+
+// ============================================================
+// DISPLACEMENT SENSOR
+// ============================================================
+
+void readDisplacement()
+{
+  int rawValue =
+    analogRead(
+      DISPLACEMENT_PIN
+    );
+
+  /*
+     Prototype conversion.
+
+     ADC:
+     0    -> 0 mm
+     4095 -> 50 mm
+
+     IMPORTANT:
+     Calibrate this using your actual
+     displacement sensor.
+  */
+
+  displacement =
+    ((float)rawValue / 4095.0) * 50.0;
+
+  displacement =
+    constrain(
+      displacement,
+      0,
+      50
+    );
+}
+
+// ============================================================
+// VIBRATION SENSOR
+// ============================================================
+
+void readVibration()
+{
+  int rawValue =
+    analogRead(
+      VIBRATION_PIN
+    );
+
+  /*
+     Prototype conversion.
+
+     0 ADC    -> 0 g
+     4095 ADC -> 1.5 g
+
+     Calibrate according to your
+     actual vibration sensor.
+  */
+
+  vibration =
+    ((float)rawValue / 4095.0) * 1.5;
+
+  vibration =
+    constrain(
+      vibration,
+      0,
+      1.5
+    );
+}
+
+// ============================================================
+// CRACK SENSOR
+// ============================================================
+
+void readCrack()
+{
+  int rawValue =
+    analogRead(
+      CRACK_PIN
+    );
+
+  /*
+     Prototype conversion.
+
+     0 ADC    -> 0 mm
+     4095 ADC -> 20 mm
+
+     Replace with your actual
+     sensor calibration.
+  */
+
+  crackWidth =
+    ((float)rawValue / 4095.0) * 20.0;
+
+  crackWidth =
+    constrain(
+      crackWidth,
+      0,
+      20
+    );
+}
+
+// ============================================================
+// BATTERY MONITORING
+// ============================================================
+
+void readBattery()
+{
+  int rawValue =
+    analogRead(
+      BATTERY_PIN
+    );
+
+  /*
+     Assumes a 1:1 voltage divider.
+
+     ESP32 ADC maximum ≈ 3.3V
+
+     Battery voltage:
+     ADC voltage × 2
+
+     Example:
+     3.7V battery -> approximately
+     1.85V at ADC
+  */
+
+  float adcVoltage =
+    ((float)rawValue / 4095.0)
+    * 3.3;
+
+  float batteryVoltage =
+    adcVoltage * 2.0;
+
+  /*
+     Li-ion prototype range:
+
+     3.2V -> 0%
+     4.2V -> 100%
+  */
+
+  batteryPercent =
+    (
+      (batteryVoltage - 3.2)
+      /
+      (4.2 - 3.2)
+    )
+    * 100.0;
+
+  batteryPercent =
+    constrain(
+      batteryPercent,
+      0,
+      100
+    );
+}
+
+// ============================================================
+// PROTOTYPE RISK ENGINE
+// ============================================================
+
+float calculateRisk()
+{
+  float score = 0.0;
+
+  // ----------------------------------------------------------
+  // TILT
+  // ----------------------------------------------------------
+
+  if (tiltAngle > 1.0)
+  {
+    score += 10;
+  }
+
+  if (tiltAngle > 2.0)
+  {
+    score += 15;
+  }
+
+  if (tiltAngle > 4.0)
+  {
+    score += 15;
+  }
+
+  // ----------------------------------------------------------
+  // DISPLACEMENT
+  // ----------------------------------------------------------
+
+  if (displacement > 5)
+  {
+    score += 10;
+  }
+
+  if (displacement > 10)
+  {
+    score += 10;
+  }
+
+  if (displacement > 20)
+  {
+    score += 15;
+  }
+
+  // ----------------------------------------------------------
+  // VIBRATION
+  // ----------------------------------------------------------
+
+  if (vibration > 0.5)
+  {
+    score += 5;
+  }
+
+  if (vibration > 1.0)
+  {
+    score += 10;
+  }
+
+  // ----------------------------------------------------------
+  // CRACK WIDTH
+  // ----------------------------------------------------------
+
+  if (crackWidth > 2)
+  {
+    score += 5;
+  }
+
+  if (crackWidth > 5)
+  {
+    score += 10;
+  }
+
+  // ----------------------------------------------------------
+  // DISPLACEMENT RATE
+  // ----------------------------------------------------------
+
+  float displacementChange =
+    displacement -
+    previousDisplacement;
+
+  if (displacementChange > 1.0)
+  {
+    score += 5;
+  }
+
+  if (displacementChange > 2.0)
+  {
+    score += 10;
+  }
+
+  // ----------------------------------------------------------
+  // TILT RATE
+  // ----------------------------------------------------------
+
+  float tiltChange =
+    tiltAngle -
+    previousTilt;
+
+  if (tiltChange > 0.5)
+  {
+    score += 5;
+  }
+
+  // ----------------------------------------------------------
+  // LIMIT
+  // ----------------------------------------------------------
+
+  score =
+    constrain(
+      score,
+      0,
+      100
+    );
+
+  // Save values
+  previousDisplacement =
+    displacement;
+
+  previousTilt =
+    tiltAngle;
+
+  return score;
+}
+
+// ============================================================
+// RISK STATUS
+// ============================================================
+
+String getRiskStatus(
+  float score
+)
+{
+  if (score < 40)
+  {
+    return "SAFE";
+  }
+
+  else if (score < 60)
+  {
+    return "LOW";
+  }
+
+  else if (score < 80)
+  {
+    return "WARNING";
+  }
+
+  else
+  {
+    return "CRITICAL";
+  }
+}
+
+// ============================================================
+// THINGSPEAK UPLOAD
+// ============================================================
+
+void uploadToThingSpeak()
+{
+  if (
+    WiFi.status() != WL_CONNECTED
+  )
+  {
+    Serial.println(
+      "ThingSpeak upload skipped."
+    );
+
+    return;
+  }
+
+  HTTPClient http;
+
+  // ----------------------------------------------------------
+  // CREATE URL
+  // ----------------------------------------------------------
+
+  String url =
+    String(THINGSPEAK_URL);
+
+  url += "?api_key=";
+  url += THINGSPEAK_WRITE_API_KEY;
+
+  // Field 1 - Tilt
+  url += "&field1=";
+  url += String(
+    tiltAngle,
+    2
+  );
+
+  // Field 2 - Displacement
+  url += "&field2=";
+  url += String(
+    displacement,
+    2
+  );
+
+  // Field 3 - Vibration
+  url += "&field3=";
+  url += String(
+    vibration,
+    2
+  );
+
+  // Field 4 - Crack Width
+  url += "&field4=";
+  url += String(
+    crackWidth,
+    2
+  );
+
+  // Field 5 - Battery
+  url += "&field5=";
+  url += String(
+    batteryPercent,
+    1
+  );
+
+  // Field 6 - Risk Score
+  url += "&field6=";
+  url += String(
+    riskScore,
+    0
+  );
+
+  Serial.println();
+  Serial.println(
+    "Uploading data to ThingSpeak..."
+  );
+
+  http.begin(url);
+
+  int httpCode =
+    http.GET();
+
+  if (httpCode > 0)
+  {
+    Serial.print(
+      "ThingSpeak HTTP Response: "
+    );
+
+    Serial.println(
+      httpCode
+    );
+
+    if (httpCode == 200)
+    {
+      Serial.println(
+        "UPLOAD SUCCESSFUL"
+      );
+    }
+    else
+    {
+      Serial.println(
+        "ThingSpeak returned an error."
+      );
+    }
+  }
+  else
+  {
+    Serial.print(
+      "HTTP Error: "
+    );
+
+    Serial.println(
+      http.errorToString(
+        httpCode
+      )
+    );
+  }
+
+  http.end();
+}
+
+// ============================================================
+// SERIAL MONITOR
+// ============================================================
+
+void printData()
+{
+  Serial.println();
+  Serial.println(
+    "================ SENSOR DATA ================"
+  );
+
+  Serial.print(
+    "Tilt              : "
+  );
+
+  Serial.print(
+    tiltAngle,
+    2
+  );
+
+  Serial.println(
+    " deg"
+  );
+
+  Serial.print(
+    "Displacement      : "
+  );
+
+  Serial.print(
+    displacement,
+    2
+  );
+
+  Serial.println(
+    " mm"
+  );
+
+  Serial.print(
+    "Vibration         : "
+  );
+
+  Serial.print(
+    vibration,
+    2
+  );
+
+  Serial.println(
+    " g"
+  );
+
+  Serial.print(
+    "Crack Width       : "
+  );
+
+  Serial.print(
+    crackWidth,
+    2
+  );
+
+  Serial.println(
+    " mm"
+  );
+
+  Serial.print(
+    "Battery           : "
+  );
+
+  Serial.print(
+    batteryPercent,
+    1
+  );
+
+  Serial.println(
+    " %"
+  );
+
+  Serial.print(
+    "Risk Score        : "
+  );
+
+  Serial.print(
+    riskScore,
+    0
+  );
+
+  Serial.println(
+    " / 100"
+  );
+
+  Serial.print(
+    "Risk Status       : "
+  );
+
+  Serial.println(
+    getRiskStatus(
+      riskScore
+    )
+  );
+
+  Serial.print(
+    "WiFi RSSI         : "
+  );
+
+  Serial.print(
+    WiFi.RSSI()
+  );
+
+  Serial.println(
+    " dBm"
+  );
+
+  Serial.println(
+    "============================================="
+  );
+}
